@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>费用查询与缴费系统</title>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 480px; margin: 0 auto; }
+        
+        /* 玻璃态卡片 */
+        .glass-card {
+            background: rgba(255,255,255,0.95);
+            border-radius: 20px;
+            padding: 24px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        
+        /* 成员端样式 */
+        .header {
+            text-align: center;
+            padding: 20px 0;
+            color: white;
+        }
+        .header h1 { font-size: 24px; margin-bottom: 8px; }
+        .header p { opacity: 0.8; font-size: 14px; }
+        
+        /* 表单样式 */
+        .form-group { margin-bottom: 16px; }
+        .form-group label {
+            display: block;
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 6px;
+        }
+        .form-group input {
+            width: 100%;
+            padding: 14px 16px;
+            border: 2px solid #e8e8e8;
+            border-radius: 12px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+        .form-group input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+        
+        /* 按钮样式 */
+        .btn {
+            width: 100%;
+            padding: 16px;
+            border: none;
+            border-radius: 12px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 20px rgba(102,126,234,0.4);
+        }
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+        }
+        
+        /* 结果卡片 */
+        .result-card {
+            background: linear-gradient(135deg, #f8f9ff 0%, #fff 100%);
+            border: 2px solid #e8e8ff;
+            border-radius: 16px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+        .result-card h3 {
+            color: #667eea;
+            margin-bottom: 16px;
+            font-size: 16px;
+        }
+        .result-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 12px 0;
+            border-bottom: 1px solid #eee;
+        }
+        .result-row:last-child { border-bottom: none; }
+        .result-label { color: #888; font-size: 14px; }
+        .result-value { font-weight: 600; color: #333; }
+        .result-value.amount {
+            font-size: 28px;
+            color: #667eea;
+        }
+        .result-value.paid { color: #52c41a; }
+        .result-value.unpaid { color: #ff4d4f; }
+        
+        /* Toast提示 */
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            font-size: 14px;
+            z-index: 9999;
+            animation: fadeIn 0.3s;
+        }
+        @keyframes fadeIn { from { opacity: 0; transform: translateX(-50%) translateY(-10px); } }
+        
+        /* 管理后台样式 */
+        .admin-panel {
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            color: white;
+        }
+        .admin-panel .glass-card {
+            background: rgba(255,255,255,0.1);
+            backdrop-filter: blur(10px);
+        }
+        .admin-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+        .admin-header h2 { font-size: 20px; }
+        .back-btn {
+            padding: 8px 16px;
+            background: rgba(255,255,255,0.2);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            cursor: pointer;
+        }
+        
+        /* 统计卡片 */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin-bottom: 20px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: rgba(255,255,255,0.7);
+            margin-top: 4px;
+        }
+        
+        /* 数据表格 */
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 13px;
+        }
+        .data-table th, .data-table td {
+            padding: 10px 8px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .data-table th {
+            color: rgba(255,255,255,0.6);
+            font-weight: 500;
+        }
+        .data-table tr:hover {
+            background: rgba(255,255,255,0.05);
+        }
+        .status-badge {
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-size: 12px;
+        }
+        .status-badge.paid { background: rgba(82,196,26,0.2); color: #52c41a; }
+        .status-badge.unpaid { background: rgba(255,77,79,0.2); color: #ff4d4f; }
+        
+        /* 操作按钮 */
+        .action-btn {
+            padding: 6px 12px;
+            border: none;
+            border-radius: 6px;
+            font-size: 12px;
+            cursor: pointer;
+            margin-right: 6px;
+        }
+        .action-btn.confirm { background: #52c41a; color: white; }
+        .action-btn.edit { background: #1677ff; color: white; }
+        .action-btn.delete { background: #ff4d4f; color: white; }
+        
+        /* 导入区域 */
+        .upload-zone {
+            border: 2px dashed rgba(255,255,255,0.3);
+            border-radius: 12px;
+            padding: 30px;
+            text-align: center;
+            cursor: pointer;
+            transition: border-color 0.3s;
+        }
+        .upload-zone:hover { border-color: #667eea; }
+        .upload-zone.dragover { border-color: #667eea; background: rgba(102,126,234,0.1); }
+        .upload-icon { font-size: 40px; margin-bottom: 10px; }
+        .upload-text { font-size: 14px; color: rgba(255,255,255,0.7); }
+        
+        /* 隐藏文件输入 */
+        #excelInput { display: none; }
+        
+        /* 搜索框 */
+        .search-box {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 16px;
+        }
+        .search-box input {
+            flex: 1;
+            padding: 10px 14px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 14px;
+        }
+        .search-box input::placeholder { color: rgba(255,255,255,0.5); }
+        .search-box select {
+            padding: 10px 14px;
+            border: none;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            font-size: 14px;
+        }
+        
+        /* 分页 */
+        .pagination {
+            display: flex;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 16px;
+        }
+        .pagination button {
+            padding: 8px 12px;
+            border: none;
+            border-radius: 6px;
+            background: rgba(255,255,255,0.1);
+            color: white;
+            cursor: pointer;
+        }
+        .pagination button.active { background: #667eea; }
+        
+        /* 管理入口 */
+        .admin-link {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px 20px;
+            background: rgba(0,0,0,0.3);
+            border-radius: 20px;
+            color: white;
+            text-decoration: none;
+            font-size: 14px;
+            cursor: pointer;
+            backdrop-filter: blur(10px);
+            z-index: 100;
+        }
+        .admin-link:hover { background: rgba(0,0,0,0.5); }
+        
+        /* 云端状态指示器 */
+        .sync-status {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 12px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            z-index: 100;
+        }
+        .sync-status.online {
+            background: rgba(82,196,26,0.9);
+            color: white;
+        }
+        .sync-status.offline {
+            background: rgba(255,77,79,0.9);
+            color: white;
+        }
+        .sync-status.loading {
+            background: rgba(102,126,234,0.9);
+            color: white;
+        }
+
+        /* 提示信息 */
+        .info-box {
+            background: rgba(102,126,234,0.1);
+            border: 1px solid rgba(102,126,234,0.3);
+            border-radius: 12px;
+            padding: 16px;
+            margin-bottom: 16px;
+            font-size: 13px;
+            color: rgba(255,255,255,0.9);
+        }
+        .info-box strong { color: #667eea; }
+
+        /* 表格容器 */
+        .table-wrapper {
+            max-height: 400px;
+            overflow-y: auto;
+            margin-top: 16px;
+        }
+        .table-wrapper::-webkit-scrollbar { width: 6px; }
+        .table-wrapper::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.3); border-radius: 3px; }
+    </style>
+</head>
+<body>
+    <!-- 成员端 -->
+    <div id="memberPanel">
+        <a class="admin-link" onclick="showAdminPanel()">⚙️ 管理后台</a>
+        
+        <!-- 云端同步状态 -->
+        <div id="syncStatus" class="sync-status loading">
+            <span>⏳</span>
+            <span>连接中...</span>
+        </div>
+        
+        <div class="header">
+            <h1>💰 费用查询</h1>
+            <p>输入您的姓名和身份证号查询应缴金额</p>
+        </div>
+        
+        <div class="container">
+            <div class="glass-card">
+                <form id="queryForm" onsubmit="handleQuery(event)">
+                    <div class="form-group">
+                        <label>姓名</label>
+                        <input type="text" id="name" placeholder="请输入您的姓名" required>
+                    </div>
+                    <div class="form-group">
+                        <label>身份证号</label>
+                        <input type="text" id="idCard" placeholder="请输入18位身份证号" maxlength="18" required>
+                    </div>
+                    <button type="submit" class="btn btn-primary">🔍 查询费用</button>
+                </form>
+                
+                <div id="resultArea" style="display:none;">
+                    <!-- 查询结果将显示在这里 -->
+                </div>
+            </div>
+            
+            <div class="glass-card" style="background:rgba(255,255,255,0.8);">
+                <h3 style="margin-bottom:12px;color:#333;">📋 缴费说明</h3>
+                <div style="font-size:14px;color:#666;line-height:1.8;">
+                    <p><strong>转账方式：</strong>请转账至指定账户</p>
+                    <p><strong>账户信息：</strong>xxx银行 xxx账户</p>
+                    <p><strong>截止日期：</strong>请于收到通知后7日内完成缴费</p>
+                    <p style="margin-top:12px;color:#ff4d4f;"><strong>⚠️ 备注：</strong>转账时请备注姓名，便于核实</p>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 管理后台 -->
+    <div id="adminPanel" style="display:none;">
+        <div class="admin-panel">
+            <div class="container">
+                <div class="glass-card">
+                    <div class="admin-header">
+                        <h2>⚙️ 管理后台</h2>
+                        <button class="back-btn" onclick="showMemberPanel()">← 返回查询</button>
+                    </div>
+                    
+                    <!-- 统计 -->
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="statTotal">0</div>
+                            <div class="stat-label">总人数</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statPaid">0</div>
+                            <div class="stat-label">已缴费</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="statUnpaid">0</div>
+                            <div class="stat-label">待缴费</div>
+                        </div>
+                    </div>
+                    
+                    <!-- 总金额统计 -->
+                    <div class="info-box" style="margin-bottom:20px;">
+                        <strong>💰 应收总额：</strong><span id="statTotalAmount">¥0</span>
+                        &nbsp;&nbsp;|&nbsp;&nbsp;
+                        <strong>✅ 已收金额：</strong><span id="statPaidAmount">¥0</span>
+                    </div>
+                    
+                    <!-- 导入区域 -->
+                    <div class="upload-zone" id="uploadZone" onclick="document.getElementById('excelInput').click()">
+                        <div class="upload-icon">📤</div>
+                        <div class="upload-text">
+                            点击或拖拽上传 Excel 文件<br>
+                            <small>支持 .xlsx, .xls 格式</small>
+                        </div>
+                    </div>
+                    <input type="file" id="excelInput" accept=".xlsx,.xls,.csv" onchange="handleExcelUpload(event)">
+                    
+                    <div style="margin-top:12px;font-size:12px;color:rgba(255,255,255,0.5);">
+                        📋 Excel表头格式：姓名、身份证号、金额、是否已缴费
+                    </div>
+                    
+                    <!-- 搜索筛选 -->
+                    <div class="search-box" style="margin-top:20px;">
+                        <input type="text" id="searchInput" placeholder="搜索姓名或身份证号..." oninput="renderTable()">
+                        <select id="filterStatus" onchange="renderTable()">
+                            <option value="">全部状态</option>
+                            <option value="paid">已缴费</option>
+                            <option value="unpaid">待缴费</option>
+                        </select>
+                    </div>
+                    
+                    <!-- 操作按钮 -->
+                    <div style="display:flex;gap:10px;margin-bottom:16px;">
+                        <button class="action-btn" style="flex:1;background:#667eea;color:white;padding:10px;" onclick="refreshFromCloud()">🔄 刷新云端</button>
+                        <button class="action-btn" style="flex:1;background:#52c41a;color:white;padding:10px;" onclick="exportData()">📤 导出数据</button>
+                        <button class="action-btn" style="flex:1;background:#ff4d4f;color:white;padding:10px;" onclick="clearAllData()">🗑️ 清空</button>
+                    </div>
+                    
+                    <!-- 数据表格 -->
+                    <div class="table-wrapper">
+                        <table class="data-table">
+                            <thead>
+                                <tr>
+                                    <th>姓名</th>
+                                    <th>身份证号</th>
+                                    <th>金额</th>
+                                    <th>状态</th>
+                                    <th>操作</th>
+                                </tr>
+                            </thead>
+                            <tbody id="dataTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+                    
+                    <!-- 分页 -->
+                    <div class="pagination" id="pagination"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 编辑弹窗 -->
+    <div id="editModal" style="display:none;position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.7);z-index:1000;align-items:center;justify-content:center;">
+        <div style="background:white;border-radius:16px;padding:24px;width:90%;max-width:400px;">
+            <h3 style="margin-bottom:16px;">✏️ 编辑信息</h3>
+            <div class="form-group">
+                <label>姓名</label>
+                <input type="text" id="editName" style="border:1px solid #ddd;">
+            </div>
+            <div class="form-group">
+                <label>身份证号</label>
+                <input type="text" id="editIdCard" style="border:1px solid #ddd;">
+            </div>
+            <div class="form-group">
+                <label>金额</label>
+                <input type="number" id="editAmount" style="border:1px solid #ddd;">
+            </div>
+            <div class="form-group">
+                <label>缴费状态</label>
+                <select id="editPaid" style="width:100%;padding:10px;border:1px solid #ddd;border-radius:8px;">
+                    <option value="false">未缴费</option>
+                    <option value="true">已缴费</option>
+                </select>
+            </div>
+            <div style="display:flex;gap:10px;margin-top:20px;">
+                <button onclick="saveEdit()" class="btn btn-primary" style="flex:1;">保存</button>
+                <button onclick="closeEditModal()" class="btn btn-secondary" style="flex:1;">取消</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // ========== 云端配置 ==========
+        const CONFIG = {
+            API_KEY: '69cf4959856a682189f5c516',  // JSONBin Access Key
+            BIN_ID: '69cf4b1a856a682189f5cb5f',    // JSONBin Bin ID
+            API_URL: 'https://api.jsonbin.io/v3/b/'
+        };
+        
+        const STORAGE_KEY = 'feesData';
+        let data = { members: [] };
+        let currentPage = 1;
+        const pageSize = 10;
+        let editingId = null;
+        let isOnline = false;
+
+        // 页面加载时初始化
+        document.addEventListener('DOMContentLoaded', function() {
+            // 优先从云端加载数据
+            loadDataFromCloud();
+            
+            // 拖拽上传
+            const zone = document.getElementById('uploadZone');
+            zone.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                zone.classList.add('dragover');
+            });
+            zone.addEventListener('dragleave', () => {
+                zone.classList.remove('dragover');
+            });
+            zone.addEventListener('drop', (e) => {
+                e.preventDefault();
+                zone.classList.remove('dragover');
+                if (e.dataTransfer.files.length) {
+                    handleExcelFile(e.dataTransfer.files[0]);
+                }
+            });
+        });
+
+        // ========== 云端同步功能 ==========
+        
+        // 从云端加载数据
+        async function loadDataFromCloud() {
+            updateSyncStatus('loading', '连接中...');
+            
+            try {
+                const response = await fetch(CONFIG.API_URL + CONFIG.BIN_ID, {
+                    headers: {
+                        'X-Access-Key': CONFIG.API_KEY
+                    }
+                });
+                
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.record && result.record.members) {
+                        data = result.record;
+                        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+                        isOnline = true;
+                        updateSyncStatus('online', '☁️ 云端已连接');
+                        console.log('✅ 云端数据加载成功，共', data.members.length, '条记录');
+                    } else {
+                        // Bin存在但是空的
+                        isOnline = true;
+                        updateSyncStatus('online', '☁️ 云端已连接');
+                    }
+                } else {
+                    throw new Error('API返回错误');
+                }
+            } catch (error) {
+                console.log('⚠️ 云端连接失败，使用本地缓存');
+                isOnline = false;
+                updateSyncStatus('offline', '⚠️ 本地模式');
+                // 降级到本地存储
+                loadDataFromLocal();
+            }
+            
+            updateStats();
+            renderTable();
+        }
+        
+        // 更新同步状态显示
+        function updateSyncStatus(status, text) {
+            const el = document.getElementById('syncStatus');
+            if (el) {
+                el.className = 'sync-status ' + status;
+                el.innerHTML = '<span>' + text + '</span>';
+            }
+        }
+
+        // 保存数据到云端
+        async function saveDataToCloud() {
+            try {
+                const response = await fetch(CONFIG.API_URL + CONFIG.BIN_ID, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Access-Key': CONFIG.API_KEY
+                    },
+                    body: JSON.stringify(data)
+                });
+                
+                if (response.ok) {
+                    console.log('✅ 数据已同步到云端');
+                    return true;
+                }
+            } catch (error) {
+                console.log('⚠️ 云端同步失败，数据保存在本地');
+            }
+            
+            // 即使云端失败，也保存到本地
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            return false;
+        }
+
+        // 从本地加载数据
+        function loadDataFromLocal() {
+            const stored = localStorage.getItem(STORAGE_KEY);
+            if (stored) {
+                try {
+                    data = JSON.parse(stored);
+                } catch (e) {
+                    console.error('Data parse error:', e);
+                }
+            }
+        }
+
+        // 保存数据（同时保存到本地和云端）
+        async function saveData() {
+            // 先保存到本地
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+            // 再同步到云端
+            await saveDataToCloud();
+        }
+
+        // 切换面板
+        function showAdminPanel() {
+            document.getElementById('memberPanel').style.display = 'none';
+            document.getElementById('adminPanel').style.display = 'block';
+            loadData();
+            updateStats();
+            renderTable();
+        }
+
+        function showMemberPanel() {
+            document.getElementById('memberPanel').style.display = 'block';
+            document.getElementById('adminPanel').style.display = 'none';
+        }
+
+        // 查询处理（每次查询都获取最新数据）
+        async function handleQuery(e) {
+            e.preventDefault();
+            
+            // 显示加载状态
+            const resultArea = document.getElementById('resultArea');
+            resultArea.innerHTML = '<div style="text-align:center;padding:40px;color:#667eea;"><div style="font-size:32px;margin-bottom:12px;">⏳</div><p>正在查询...</p></div>';
+            resultArea.style.display = 'block';
+            
+            // 从云端获取最新数据
+            try {
+                const response = await fetch(CONFIG.API_URL + CONFIG.BIN_ID, {
+                    headers: { 'X-Access-Key': CONFIG.API_KEY }
+                });
+                if (response.ok) {
+                    const result = await response.json();
+                    if (result.record && result.record.members) {
+                        data = result.record;
+                    }
+                }
+            } catch (error) {
+                console.log('查询时无法连接云端，使用本地数据');
+            }
+            
+            const name = document.getElementById('name').value.trim();
+            const idCard = document.getElementById('idCard').value.trim().replace(/\s/g, '');
+            
+            if (!name || !idCard) {
+                showToast('请填写完整信息', 'error');
+                return;
+            }
+            if (idCard.length !== 18) {
+                showToast('身份证号格式不正确', 'error');
+                return;
+            }
+            
+            // 查找匹配记录
+            const member = data.members.find(m => 
+                m.name === name && m.idCard === idCard
+            );
+            
+            const resultArea = document.getElementById('resultArea');
+            
+            if (!member) {
+                resultArea.innerHTML = `
+                    <div style="text-align:center;padding:30px;color:#ff4d4f;">
+                        <div style="font-size:48px;margin-bottom:12px;">❌</div>
+                        <p style="font-size:16px;">未找到匹配记录</p>
+                        <p style="font-size:13px;color:#888;margin-top:8px;">请核对姓名和身份证号是否正确</p>
+                    </div>
+                `;
+                resultArea.style.display = 'block';
+                return;
+            }
+            
+            resultArea.innerHTML = `
+                <div class="result-card">
+                    <h3>👤 ${member.name} - 费用信息</h3>
+                    <div class="result-row">
+                        <span class="result-label">身份证号</span>
+                        <span class="result-value">${member.idCard.replace(/(\d{6})\d{8}(\d{4})/, '$1********$2')}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">应缴金额</span>
+                        <span class="result-value amount">¥${member.amount.toFixed(2)}</span>
+                    </div>
+                    <div class="result-row">
+                        <span class="result-label">缴费状态</span>
+                        <span class="result-value ${member.paid ? 'paid' : 'unpaid'}">
+                            ${member.paid ? '✅ 已缴费' : '⏳ 待缴费'}
+                        </span>
+                    </div>
+                    ${!member.paid ? `
+                    <div style="margin-top:20px;">
+                        <button onclick="confirmPayment('${member.idCard}')" class="btn btn-primary">
+                            💳 我已缴费，确认转账
+                        </button>
+                    </div>
+                    ` : ''}
+                </div>
+            `;
+            resultArea.style.display = 'block';
+        }
+
+        // 确认缴费（同步到云端）
+        async function confirmPayment(idCard) {
+            const member = data.members.find(m => m.idCard === idCard);
+            if (member) {
+                member.paid = true;
+                await saveData(); // 保存到云端
+                showToast('✅ 缴费确认成功！');
+                // 刷新显示
+                document.getElementById('name').value = member.name;
+                document.getElementById('idCard').value = member.idCard;
+                handleQuery(new Event('submit'));
+            }
+        }
+
+        // 统计更新
+        function updateStats() {
+            const total = data.members.length;
+            const paid = data.members.filter(m => m.paid).length;
+            const unpaid = total - paid;
+            const totalAmount = data.members.reduce((sum, m) => sum + m.amount, 0);
+            const paidAmount = data.members.filter(m => m.paid).reduce((sum, m) => sum + m.amount, 0);
+            
+            document.getElementById('statTotal').textContent = total;
+            document.getElementById('statPaid').textContent = paid;
+            document.getElementById('statUnpaid').textContent = unpaid;
+            document.getElementById('statTotalAmount').textContent = '¥' + totalAmount.toFixed(2);
+            document.getElementById('statPaidAmount').textContent = '¥' + paidAmount.toFixed(2);
+        }
+
+        // 渲染表格
+        function renderTable() {
+            const search = document.getElementById('searchInput').value.toLowerCase();
+            const filter = document.getElementById('filterStatus').value;
+            
+            let filtered = data.members.filter(m => {
+                const matchSearch = !search || 
+                    m.name.toLowerCase().includes(search) || 
+                    m.idCard.includes(search);
+                const matchFilter = !filter || 
+                    (filter === 'paid' && m.paid) || 
+                    (filter === 'unpaid' && !m.paid);
+                return matchSearch && matchFilter;
+            });
+            
+            // 分页
+            const totalPages = Math.ceil(filtered.length / pageSize) || 1;
+            if (currentPage > totalPages) currentPage = totalPages;
+            
+            const start = (currentPage - 1) * pageSize;
+            const pageData = filtered.slice(start, start + pageSize);
+            
+            const tbody = document.getElementById('dataTableBody');
+            if (pageData.length === 0) {
+                tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;padding:40px;color:rgba(255,255,255,0.5);">暂无数据</td></tr>';
+            } else {
+                tbody.innerHTML = pageData.map(m => `
+                    <tr>
+                        <td>${m.name}</td>
+                        <td>${m.idCard}</td>
+                        <td>¥${m.amount.toFixed(2)}</td>
+                        <td><span class="status-badge ${m.paid ? 'paid' : 'unpaid'}">${m.paid ? '已缴费' : '待缴费'}</span></td>
+                        <td>
+                            ${!m.paid ? `<button class="action-btn confirm" onclick="markPaid('${m.idCard}')">确认</button>` : ''}
+                            <button class="action-btn edit" onclick="editMember('${m.idCard}')">编辑</button>
+                            <button class="action-btn delete" onclick="deleteMember('${m.idCard}')">删除</button>
+                        </td>
+                    </tr>
+                `).join('');
+            }
+            
+            // 渲染分页
+            const pagination = document.getElementById('pagination');
+            let pageHtml = '';
+            for (let i = 1; i <= totalPages; i++) {
+                pageHtml += `<button class="${i === currentPage ? 'active' : ''}" onclick="goPage(${i})">${i}</button>`;
+            }
+            pagination.innerHTML = pageHtml;
+        }
+
+        function goPage(page) {
+            currentPage = page;
+            renderTable();
+        }
+
+        // 标记已缴费
+        function markPaid(idCard) {
+            const member = data.members.find(m => m.idCard === idCard);
+            if (member) {
+                member.paid = true;
+                saveData();
+                updateStats();
+                renderTable();
+                showToast('✅ 已标记为已缴费');
+            }
+        }
+
+        // 编辑成员
+        function editMember(idCard) {
+            const member = data.members.find(m => m.idCard === idCard);
+            if (member) {
+                editingId = idCard;
+                document.getElementById('editName').value = member.name;
+                document.getElementById('editIdCard').value = member.idCard;
+                document.getElementById('editAmount').value = member.amount;
+                document.getElementById('editPaid').value = String(member.paid);
+                document.getElementById('editModal').style.display = 'flex';
+            }
+        }
+
+        function saveEdit() {
+            const member = data.members.find(m => m.idCard === editingId);
+            if (member) {
+                member.name = document.getElementById('editName').value.trim();
+                member.idCard = document.getElementById('editIdCard').value.trim();
+                member.amount = parseFloat(document.getElementById('editAmount').value) || 0;
+                member.paid = document.getElementById('editPaid').value === 'true';
+                saveData();
+                updateStats();
+                renderTable();
+                closeEditModal();
+                showToast('✅ 信息已更新');
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+            editingId = null;
+        }
+
+        // 删除成员
+        function deleteMember(idCard) {
+            if (confirm('确定要删除这条记录吗？')) {
+                data.members = data.members.filter(m => m.idCard !== idCard);
+                saveData();
+                updateStats();
+                renderTable();
+                showToast('🗑️ 已删除');
+            }
+        }
+
+        // 清空数据
+        function clearAllData() {
+            if (confirm('确定要清空所有数据吗？此操作不可恢复！')) {
+                data.members = [];
+                saveData();
+                updateStats();
+                renderTable();
+                showToast('🗑️ 已清空所有数据');
+            }
+        }
+
+        // Excel导入
+        function handleExcelUpload(event) {
+            const file = event.target.files[0];
+            if (file) handleExcelFile(file);
+            event.target.value = '';
+        }
+
+        function handleExcelFile(file) {
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                try {
+                    const workbook = XLSX.read(e.target.result, { type: 'array' });
+                    const sheetName = workbook.SheetNames[0];
+                    const worksheet = workbook.Sheets[sheetName];
+                    
+                    // 使用 header: 1 直接读取数组格式
+                    const rawData = XLSX.utils.sheet_to_json(worksheet, { 
+                        raw: false,
+                        header: 1,
+                        defval: ''
+                    });
+                    
+                    if (rawData.length < 2) {
+                        showToast('Excel文件数据不足', 'error');
+                        return;
+                    }
+                    
+                    // 获取表头
+                    const headers = rawData[0].map((h, i) => ({
+                        index: i,
+                        name: String(h || '').trim().toLowerCase().replace(/\s+/g, '')
+                    }));
+                    
+                    // 查找列索引
+                    const colMap = {
+                        name: headers.findIndex(h => h.name.includes('姓名') || h.name.includes('name')),
+                        idCard: headers.findIndex(h => h.name.includes('身份证') || h.name.includes('idcard') || h.name.includes('id')),
+                        amount: headers.findIndex(h => h.name.includes('金额') || h.name.includes('amount') || h.name.includes('fee')),
+                        paid: headers.findIndex(h => h.name.includes('缴费') || h.name.includes('paid') || h.name.includes('状态'))
+                    };
+                    
+                    // 如果按名字找不到，使用位置
+                    if (colMap.name === -1) colMap.name = 0;
+                    if (colMap.idCard === -1) colMap.idCard = 1;
+                    if (colMap.amount === -1) colMap.amount = 2;
+                    if (colMap.paid === -1) colMap.paid = 3;
+                    
+                    // 解析数据
+                    const newMembers = [];
+                    for (let i = 1; i < rawData.length; i++) {
+                        const row = rawData[i];
+                        const nameVal = String(row[colMap.name] || '').trim();
+                        const idCardVal = String(row[colMap.idCard] || '').replace(/\s+/g, '').trim();
+                        
+                        // 跳过无效行
+                        if (!nameVal || !idCardVal || idCardVal.length < 10) continue;
+                        if (nameVal.includes('姓名')) continue; // 跳过可能的重复表头
+                        
+                        const amountVal = row[colMap.amount] || 0;
+                        const paidVal = row[colMap.paid] || '';
+                        
+                        let isPaid = false;
+                        if (paidVal) {
+                            const paidStr = String(paidVal).toLowerCase().trim();
+                            isPaid = paidStr === '是' || paidStr === 'yes' || paidStr === '已缴费' || 
+                                    paidStr === 'true' || paidStr === '1' || paidStr.includes('已');
+                        }
+                        
+                        newMembers.push({
+                            id: Date.now() + i,
+                            name: nameVal,
+                            idCard: idCardVal,
+                            amount: parseFloat(amountVal) || 0,
+                            paid: isPaid
+                        });
+                    }
+                    
+                    if (newMembers.length === 0) {
+                        showToast('未找到有效数据，请检查Excel格式', 'error');
+                        return;
+                    }
+                    
+                    // 检查重复
+                    let added = 0, skipped = 0;
+                    newMembers.forEach(member => {
+                        if (!data.members.some(d => d.idCard === member.idCard)) {
+                            data.members.push(member);
+                            added++;
+                        } else {
+                            skipped++;
+                        }
+                    });
+                    
+                    saveData();
+                    updateStats();
+                    renderTable();
+                    
+                    let msg = `✅ 成功导入 ${added} 条数据`;
+                    if (skipped > 0) msg += `，跳过 ${skipped} 条重复`;
+                    showToast(msg);
+                    
+                } catch (error) {
+                    console.error('Excel parse error:', error);
+                    showToast('Excel文件解析失败', 'error');
+                }
+            };
+            reader.readAsArrayBuffer(file);
+        }
+
+        // 导出数据
+        function exportData() {
+            if (data.members.length === 0) {
+                showToast('没有数据可导出', 'error');
+                return;
+            }
+            
+            const exportData = data.members.map(m => ({
+                '姓名': m.name,
+                '身份证号': m.idCard,
+                '金额': m.amount,
+                '是否已缴费': m.paid ? '是' : '否'
+            }));
+            
+            const ws = XLSX.utils.json_to_sheet(exportData);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, '缴费数据');
+            
+            const fileName = `缴费数据_${new Date().toLocaleDateString().replace(/\//g, '-')}.xlsx`;
+            XLSX.writeFile(wb, fileName);
+            showToast('📤 数据已导出');
+        }
+
+        // Toast提示
+        function showToast(message, type = 'success') {
+            const toast = document.createElement('div');
+            toast.className = 'toast';
+            toast.textContent = message;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 3000);
+        }
+        
+        // 从云端刷新数据
+        async function refreshFromCloud() {
+            showToast('🔄 正在从云端刷新...');
+            await loadDataFromCloud();
+            showToast('✅ 数据已刷新');
+        }
+    </script>
+</body>
+</html>
